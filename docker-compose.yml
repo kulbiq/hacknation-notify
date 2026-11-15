@@ -1,0 +1,13 @@
+services:
+  hacknation-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hacknation-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - DB_PATH=/data/hacknation.db
+    volumes:
+      - ./data:/data
