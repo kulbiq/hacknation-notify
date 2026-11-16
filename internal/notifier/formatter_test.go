@@ -104,3 +104,13 @@ func TestFormatDailySummaryEmbed(t *testing.T) {
 		t.Errorf("expected ColorOrange, got %x", embedWithChanges.Color)
 	}
 }
+
+func TestFormatTestEmbed(t *testing.T) {
+	embed := FormatTestEmbed()
+	if !strings.Contains(embed.Title, "Test powiadomień") {
+		t.Errorf("expected Title to contain 'Test powiadomień', got: %s", embed.Title)
+	}
+	if embed.Color != ColorGreen {
+		t.Errorf("expected ColorGreen, got %x", embed.Color)
+	}
+}

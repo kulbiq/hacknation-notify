@@ -145,6 +145,30 @@ func FormatStartupEmbed(taskCount int) Embed {
 	}
 }
 
+// FormatTestEmbed creates a test verification embed for verifying webhook connectivity.
+func FormatTestEmbed() Embed {
+	return Embed{
+		Title: "🧪 Test powiadomień — HackNation Bot",
+		Description: fmt.Sprintf(
+			"Twój **Discord Webhook** działa poprawnie! 🎉\n\nBot pomyślnie połączył się z Discordem i jest gotowy do monitorowania zadań na [hacknation.pl/zadania](%s).",
+			TargetTasksURL,
+		),
+		URL:   TargetTasksURL,
+		Color: ColorGreen,
+		Fields: []EmbedField{
+			{
+				Name:   "✅ Status połączenia",
+				Value:  "Pomyślnie dostarczono wiadomość testową",
+				Inline: false,
+			},
+		},
+		Footer: &EmbedFooter{
+			Text: "HackNation 2026 Bot • Test Webhooka",
+		},
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+	}
+}
+
 // FormatDailySummaryEmbed creates a daily summary embed in Polish, highlighting whether changes occurred.
 func FormatDailySummaryEmbed(tasks []scraper.Task, newCountLast24h, updatedCountLast24h int) Embed {
 	var desc string

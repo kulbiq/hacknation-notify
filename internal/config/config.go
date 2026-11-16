@@ -49,6 +49,14 @@ func LoadConfig() *Config {
 	dbPath := os.Getenv("DB_PATH")
 	if dbPath == "" {
 		dbPath = "./data/hacknation.db"
+	} else if strings.HasPrefix(dbPath, "/data") {
+		// Sprawdź czy działamy w kontenerze Docker (istnieje /.dockerenv lub katalog /data)
+		if _, err := os.Stat("/.dockerenv"); err != nil {
+			if _, err := os.Stat("/data"); err != nil {
+				// Działamy lokalnie na hoście (np. macOS) bez katalogu /data w root
+				dbPath = "./data/hacknation.db"
+			}
+		}
 	}
 
 	notifyInitial := false

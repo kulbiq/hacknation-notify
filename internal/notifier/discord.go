@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -61,11 +62,26 @@ type DiscordNotifier struct {
 }
 
 func NewDiscordNotifier(webhookURL string, dryRun bool) *DiscordNotifier {
+	isPlaceholder := strings.Contains(webhookURL, "YOUR_WEBHOOK_ID") || strings.TrimSpace(webhookURL) == ""
 	return &DiscordNotifier{
 		webhookURL: webhookURL,
 		httpClient: &http.Client{Timeout: 15 * time.Second},
-		dryRun:     dryRun || webhookURL == "",
+		dryRun:     dryRun || isPlaceholder,
 	}
+}
+
+// IsConfigured returns true if a non-placeholder webhook URL is provided.
+func (n *DiscordNotifier) IsConfigured() bool {
+	return n.webhookURL != "" && !strings.Contains(n.webhookURL, "YOUR_WEBHOOK_ID")
+}
+
+// SendTestNotification sends an immediate test message to verify Discord Webhook configuration.
+func (n *DiscordNotifier) SendTestNotification(ctx context.Context) error {
+	if !n.IsConfigured() {
+		return fmt.Errorf("DISCORD_WEBHOOK_URL nie jest skonfigurowany lub zawiera domyślny szablon (YOUR_WEBHOOK_ID). Wklej prawdziwy URL w pliku .env")
+	}
+	embed := FormatTestEmbed()
+	return n.SendEmbeds(ctx, []Embed{embed})
 }
 
 // SendEmbeds sends one or more embeds to Discord. Discord allows max 10 embeds per message.

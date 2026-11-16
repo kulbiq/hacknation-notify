@@ -20,7 +20,13 @@ func NewStorage(dbPath string) (*Storage, error) {
 	if dbPath != ":memory:" {
 		dir := filepath.Dir(dbPath)
 		if err := os.MkdirAll(dir, 0755); err != nil {
-			return nil, fmt.Errorf("failed to create directory for database: %w", err)
+			// Jeśli próba utworzenia /data na hoście zawiedzie, użyj katalogu lokalnego ./data
+			fallbackDir := "./data"
+			if mkErr := os.MkdirAll(fallbackDir, 0755); mkErr == nil {
+				dbPath = filepath.Join(fallbackDir, filepath.Base(dbPath))
+			} else {
+				return nil, fmt.Errorf("failed to create directory for database: %w", err)
+			}
 		}
 	}
 

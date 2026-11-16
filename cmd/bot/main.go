@@ -20,6 +20,8 @@ func main() {
 	onceFlag := flag.Bool("once", false, "Wykonaj pojedyncze sprawdzenie i zakończ działanie")
 	dryRunFlag := flag.Bool("dry-run", false, "Tryb testowy - loguj powiadomienia zamiast wysyłać na Discord")
 	dailySummaryFlag := flag.Bool("daily-summary", false, "Wyślij natychmiast dzienne podsumowanie na Discord i zakończ")
+	testWebhookFlag := flag.Bool("test-webhook", false, "Wyślij natychmiast powiadomienie testowe na Discord i sprawdź konfigurację")
+	notifyAllFlag := flag.Bool("notify-all", false, "Wyślij powiadomienia o wszystkich istniejących zadaniach na Discord i zakończ")
 	flag.Parse()
 
 	log.Println("🚀 Uruchamianie HackNation Zadania Bot...")
@@ -43,12 +45,25 @@ func main() {
 
 	// Inicjalizacja notyfikatora Discord
 	notif := notifier.NewDiscordNotifier(cfg.DiscordWebhookURL, *dryRunFlag)
-	if cfg.DiscordWebhookURL == "" && !*dryRunFlag {
-		log.Println("⚠️ OSTRZEŻENIE: Brak DISCORD_WEBHOOK_URL w konfiguracji! Powiadomienia będą logowane lokalnie.")
+	if !notif.IsConfigured() && !*dryRunFlag {
+		log.Println("⚠️ OSTRZEŻENIE: DISCORD_WEBHOOK_URL w pliku .env jest pusty lub zawiera domyślny szablon (YOUR_WEBHOOK_ID)!")
+		log.Println("👉 Wklej swój prawdziwy adres webhooka z Discorda do pliku .env, aby powiadomienia trafiały na Twój kanał.")
+		log.Println("👉 Instrukcja: Discord -> Ustawienia kanału -> Integracje -> Webhooki -> Kopiuj adres URL webhooka.")
+		log.Println("👉 Dopóki nie wkleisz prawidłowego URL-a, bot działa w trybie bezpiecznym DRY-RUN (wypisuje treść do konsoli).")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Tryb natychmiastowego testu Webhooka (--test-webhook)
+	if *testWebhookFlag {
+		log.Println("🧪 Sprawdzanie i wysyłanie powiadomienia testowego na Discord...")
+		if err := notif.SendTestNotification(ctx); err != nil {
+			log.Fatalf("❌ Błąd testu: %v", err)
+		}
+		log.Println("✅ Powiadomienie testowe wysłane pomyślnie na Discord! Sprawdź swój kanał.")
+		return
+	}
 
 	// Tryb natychmiastowego wysłania dziennego podsumowania (--daily-summary)
 	if *dailySummaryFlag {
@@ -59,9 +74,27 @@ func main() {
 		return
 	}
 
+	// Tryb wysłania wszystkich zadań z bazy (--notify-all)
+	if *notifyAllFlag {
+		log.Println("📢 Wysyłanie powiadomień dla wszystkich zadań z bazy (--notify-all)...")
+		tasks, err := store.GetAllTasks()
+		if err != nil {
+			log.Fatalf("❌ Błąd pobierania zadań z bazy: %v", err)
+		}
+		var embeds []notifier.Embed
+		for _, t := range tasks {
+			embeds = append(embeds, notifier.FormatNewTaskEmbed(t))
+		}
+		if err := notif.SendEmbeds(ctx, embeds); err != nil {
+			log.Fatalf("❌ Błąd wysyłania powiadomień: %v", err)
+		}
+		log.Printf("✅ Pomyślnie wysłano %d zadań na Discord!", len(embeds))
+		return
+	}
+
 	// Pierwsze sprawdzenie natychmiast po uruchomieniu
 	log.Println("🔍 Wykonywanie sprawdzania zadań...")
-	runCheck(ctx, scr, store, notif, cfg)
+	runCheck(ctx, scr, store, notif, cfg, true)
 	checkDailySummary(ctx, store, notif, cfg)
 
 	if *onceFlag {
@@ -82,7 +115,7 @@ func main() {
 		select {
 		case <-ticker.C:
 			log.Println("🔍 [Cykl] Rozpoczynanie cyklicznego sprawdzania zadań...")
-			runCheck(ctx, scr, store, notif, cfg)
+			runCheck(ctx, scr, store, notif, cfg, false)
 			checkDailySummary(ctx, store, notif, cfg)
 		case sig := <-sigChan:
 			log.Printf("🛑 Odebrano sygnał %v, bezpieczne wyłączanie bota...", sig)
@@ -91,7 +124,7 @@ func main() {
 	}
 }
 
-func runCheck(ctx context.Context, scr *scraper.Scraper, store *storage.Storage, notif *notifier.DiscordNotifier, cfg *config.Config) {
+func runCheck(ctx context.Context, scr *scraper.Scraper, store *storage.Storage, notif *notifier.DiscordNotifier, cfg *config.Config, isStartup bool) {
 	tasks, err := scr.FetchTasks(ctx)
 	if err != nil {
 		log.Printf("❌ Błąd podczas pobierania zadań ze strony %s: %v", cfg.TargetURL, err)
@@ -106,6 +139,15 @@ func runCheck(ctx context.Context, scr *scraper.Scraper, store *storage.Storage,
 		return
 	}
 
+	// Powiadomienie o starcie monitoringu przy uruchomieniu bota
+	if isStartup && cfg.SendStartupMessage && (!isInitialSync || !cfg.NotifyOnInitialRun) {
+		log.Println("📢 Wysyłanie powiadomienia o starcie monitoringu...")
+		startupEmbed := notifier.FormatStartupEmbed(len(tasks))
+		if err := notif.SendEmbeds(ctx, []notifier.Embed{startupEmbed}); err != nil {
+			log.Printf("❌ Błąd wysyłania powiadomienia o starcie: %v", err)
+		}
+	}
+
 	if isInitialSync {
 		log.Printf("🌱 Pierwsza synchronizacja: zapisano %d zadań jako stan początkowy", len(tasks))
 
@@ -117,12 +159,6 @@ func runCheck(ctx context.Context, scr *scraper.Scraper, store *storage.Storage,
 			}
 			if err := notif.SendEmbeds(ctx, embeds); err != nil {
 				log.Printf("❌ Błąd wysyłania powiadomień początkowych: %v", err)
-			}
-		} else if cfg.SendStartupMessage {
-			log.Println("📢 Wysyłanie powiadomienia o starcie monitoringu...")
-			startupEmbed := notifier.FormatStartupEmbed(len(tasks))
-			if err := notif.SendEmbeds(ctx, []notifier.Embed{startupEmbed}); err != nil {
-				log.Printf("❌ Błąd wysyłania powiadomienia o starcie: %v", err)
 			}
 		}
 		return
