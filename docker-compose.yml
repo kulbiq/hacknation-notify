@@ -8,6 +8,13 @@ services:
     env_file:
       - .env
     environment:
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - CHECK_INTERVAL=${CHECK_INTERVAL:-15m}
+      - DAILY_SUMMARY_ENABLED=${DAILY_SUMMARY_ENABLED:-true}
+      - DAILY_SUMMARY_TIME=${DAILY_SUMMARY_TIME:-10:00}
+      - DAILY_SUMMARY_ONLY_IF_NO_CHANGES=${DAILY_SUMMARY_ONLY_IF_NO_CHANGES:-false}
+      - NOTIFY_ON_INITIAL_RUN=${NOTIFY_ON_INITIAL_RUN:-false}
+      - SEND_STARTUP_MESSAGE=${SEND_STARTUP_MESSAGE:-true}
       - DB_PATH=/data/hacknation.db
       - TZ=${TZ:-Europe/Warsaw}
     volumes:

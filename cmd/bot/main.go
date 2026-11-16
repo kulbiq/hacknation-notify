@@ -70,8 +70,8 @@ func main() {
 	}
 
 	// Pętla cyklicznego monitorowania
-	log.Printf("⏰ Uruchomiono cykliczny monitoring (interwał: %v, dzienne podsumowanie: %v o %02d:00). Oczekiwanie na cykl...",
-		cfg.CheckInterval, cfg.DailySummaryEnabled, cfg.DailySummaryHour)
+	log.Printf("⏰ Uruchomiono cykliczny monitoring (interwał: %v, dzienne podsumowanie: %v o %02d:%02d, tylko gdy brak zmian: %v). Oczekiwanie na cykl...",
+		cfg.CheckInterval, cfg.DailySummaryEnabled, cfg.DailySummaryHour, cfg.DailySummaryMinute, cfg.DailySummaryOnlyIfNoChanges)
 	ticker := time.NewTicker(cfg.CheckInterval)
 	defer ticker.Stop()
 
@@ -166,8 +166,8 @@ func checkDailySummary(ctx context.Context, store *storage.Storage, notif *notif
 	}
 
 	now := time.Now()
-	// Jeśli godzina jest wcześniejsza niż skonfigurowana godzina podsumowania (np. 10:00), czekamy
-	if now.Hour() < cfg.DailySummaryHour {
+	// Jeśli godzina:minuta jest wcześniejsza niż wyznaczony czas podsumowania, czekamy
+	if now.Hour() < cfg.DailySummaryHour || (now.Hour() == cfg.DailySummaryHour && now.Minute() < cfg.DailySummaryMinute) {
 		return
 	}
 
@@ -179,7 +179,20 @@ func checkDailySummary(ctx context.Context, store *storage.Storage, notif *notif
 	}
 
 	if lastDate == today {
-		// Dzisiejsze podsumowanie zostało już wysłane
+		// Dzisiejsze podsumowanie zostało już obsłużone
+		return
+	}
+
+	newCount, updatedCount, err := store.GetActivityLast24Hours()
+	if err != nil {
+		log.Printf("⚠️ Błąd pobierania aktywności z bazy: %v", err)
+		return
+	}
+
+	// Jeśli użytkownik zażądał wysyłania tylko w przypadku braku zmian w ciągu 24h:
+	if cfg.DailySummaryOnlyIfNoChanges && (newCount > 0 || updatedCount > 0) {
+		log.Printf("ℹ️ Pomijanie raportu dziennego (DAILY_SUMMARY_ONLY_IF_NO_CHANGES=true, wykryto %d zmian w 24h)", newCount+updatedCount)
+		_ = store.SetLastDailySummaryDate(today)
 		return
 	}
 

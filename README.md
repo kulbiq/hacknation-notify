@@ -98,7 +98,8 @@ Wymagane: Go 1.22+.
 | `DISCORD_WEBHOOK_URL` | *(brak)* | URL webhooka Discorda do wysyłania powiadomień |
 | `CHECK_INTERVAL` | `15m` | Odstęp czasu między kolejnymi sprawdzeniami (np. `5m`, `15m`, `1h`) |
 | `DAILY_SUMMARY_ENABLED` | `true` | Czy wysyłać codzienne podsumowanie stanu bazy |
-| `DAILY_SUMMARY_HOUR` | `10` | Godzina wysyłania podsumowania dziennego (0-23, np. `10` = 10:00 rano) |
+| `DAILY_SUMMARY_TIME` | `10:00` | Godzina wysyłki raportu dziennego (np. `10:00`, `18:30` lub sama godzina `0-23`) |
+| `DAILY_SUMMARY_ONLY_IF_NO_CHANGES` | `false` | Jeśli `true`, raport zostanie wysłany **tylko** wtedy, gdy w ostatnich 24h nic nie dodano ani nie zmieniono |
 | `TZ` | `Europe/Warsaw` | Strefa czasowa dla kontenera (zalecana strefa polska) |
 | `TARGET_URL` | `https://hacknation.pl/zadania` | Adres monitorowanej strony z zadaniami |
 | `DB_PATH` | `./data/hacknation.db` | Ścieżka do pliku bazy danych SQLite |

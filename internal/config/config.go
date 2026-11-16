@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -16,8 +17,10 @@ type Config struct {
 	DBPath              string
 	NotifyOnInitialRun  bool
 	SendStartupMessage  bool
-	DailySummaryEnabled bool
-	DailySummaryHour    int
+	DailySummaryEnabled       bool
+	DailySummaryHour          int
+	DailySummaryMinute        int
+	DailySummaryOnlyIfNoChanges bool
 }
 
 func LoadConfig() *Config {
@@ -69,21 +72,43 @@ func LoadConfig() *Config {
 		}
 	}
 
-	dailySummaryHour := 10 // Domyślnie 10:00
-	if val := os.Getenv("DAILY_SUMMARY_HOUR"); val != "" {
+	dailySummaryHour := 10
+	dailySummaryMinute := 0
+	if val := os.Getenv("DAILY_SUMMARY_TIME"); val != "" {
+		parts := strings.Split(val, ":")
+		if len(parts) >= 1 {
+			if h, err := strconv.Atoi(strings.TrimSpace(parts[0])); err == nil && h >= 0 && h <= 23 {
+				dailySummaryHour = h
+			}
+		}
+		if len(parts) >= 2 {
+			if m, err := strconv.Atoi(strings.TrimSpace(parts[1])); err == nil && m >= 0 && m <= 59 {
+				dailySummaryMinute = m
+			}
+		}
+	} else if val := os.Getenv("DAILY_SUMMARY_HOUR"); val != "" {
 		if h, err := strconv.Atoi(val); err == nil && h >= 0 && h <= 23 {
 			dailySummaryHour = h
 		}
 	}
 
+	dailySummaryOnlyNoChanges := false
+	if val := os.Getenv("DAILY_SUMMARY_ONLY_IF_NO_CHANGES"); val != "" {
+		if b, err := strconv.ParseBool(val); err == nil {
+			dailySummaryOnlyNoChanges = b
+		}
+	}
+
 	return &Config{
-		DiscordWebhookURL:   webhookURL,
-		TargetURL:           targetURL,
-		CheckInterval:       interval,
-		DBPath:              dbPath,
-		NotifyOnInitialRun:  notifyInitial,
-		SendStartupMessage:  sendStartup,
-		DailySummaryEnabled: dailySummaryEnabled,
-		DailySummaryHour:    dailySummaryHour,
+		DiscordWebhookURL:           webhookURL,
+		TargetURL:                   targetURL,
+		CheckInterval:               interval,
+		DBPath:                      dbPath,
+		NotifyOnInitialRun:          notifyInitial,
+		SendStartupMessage:          sendStartup,
+		DailySummaryEnabled:         dailySummaryEnabled,
+		DailySummaryHour:            dailySummaryHour,
+		DailySummaryMinute:          dailySummaryMinute,
+		DailySummaryOnlyIfNoChanges: dailySummaryOnlyNoChanges,
 	}
 }
