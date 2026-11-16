@@ -64,6 +64,12 @@ func (s *Storage) initSchema() error {
 		new_count INTEGER NOT NULL,
 		updated_count INTEGER NOT NULL
 	);
+
+	CREATE TABLE IF NOT EXISTS bot_metadata (
+		key TEXT PRIMARY KEY,
+		value TEXT NOT NULL,
+		updated_at DATETIME NOT NULL
+	);
 	`
 	_, err := s.db.Exec(schema)
 	return err
@@ -71,6 +77,59 @@ func (s *Storage) initSchema() error {
 
 func (s *Storage) Close() error {
 	return s.db.Close()
+}
+
+func (s *Storage) GetLastDailySummaryDate() (string, error) {
+	var val string
+	err := s.db.QueryRow("SELECT value FROM bot_metadata WHERE key = 'last_daily_summary_date'").Scan(&val)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return val, err
+}
+
+func (s *Storage) SetLastDailySummaryDate(dateStr string) error {
+	_, err := s.db.Exec(`
+		INSERT INTO bot_metadata (key, value, updated_at)
+		VALUES ('last_daily_summary_date', ?, ?)
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+	`, dateStr, time.Now().UTC())
+	return err
+}
+
+func (s *Storage) GetAllTasks() ([]scraper.Task, error) {
+	rows, err := s.db.Query(`
+		SELECT id, title, file_name, initiator, campaign, description, prize, logo_url, content_hash
+		FROM tasks
+		ORDER BY id ASC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tasks []scraper.Task
+	for rows.Next() {
+		var t scraper.Task
+		if err := rows.Scan(&t.ID, &t.Title, &t.FileName, &t.Initiator, &t.Campaign, &t.Description, &t.Prize, &t.LogoURL, &t.ContentHash); err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, t)
+	}
+	return tasks, rows.Err()
+}
+
+func (s *Storage) GetActivityLast24Hours() (int, int, error) {
+	var newCount, updatedCount int
+	err := s.db.QueryRow(`
+		SELECT COALESCE(SUM(new_count), 0), COALESCE(SUM(updated_count), 0)
+		FROM sync_history
+		WHERE synced_at >= datetime('now', '-24 hours')
+	`).Scan(&newCount, &updatedCount)
+	if err == sql.ErrNoRows {
+		return 0, 0, nil
+	}
+	return newCount, updatedCount, err
 }
 
 func (s *Storage) GetTaskCount() (int, error) {

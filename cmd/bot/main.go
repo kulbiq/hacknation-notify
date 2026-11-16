@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -18,6 +19,7 @@ import (
 func main() {
 	onceFlag := flag.Bool("once", false, "Wykonaj pojedyncze sprawdzenie i zakończ działanie")
 	dryRunFlag := flag.Bool("dry-run", false, "Tryb testowy - loguj powiadomienia zamiast wysyłać na Discord")
+	dailySummaryFlag := flag.Bool("daily-summary", false, "Wyślij natychmiast dzienne podsumowanie na Discord i zakończ")
 	flag.Parse()
 
 	log.Println("🚀 Uruchamianie HackNation Zadania Bot...")
@@ -48,9 +50,19 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Tryb natychmiastowego wysłania dziennego podsumowania (--daily-summary)
+	if *dailySummaryFlag {
+		log.Println("📊 Wymuszone wysyłanie dziennego podsumowania (--daily-summary)...")
+		if err := sendDailySummary(ctx, store, notif); err != nil {
+			log.Fatalf("❌ Błąd podczas wysyłania dziennego podsumowania: %v", err)
+		}
+		return
+	}
+
 	// Pierwsze sprawdzenie natychmiast po uruchomieniu
 	log.Println("🔍 Wykonywanie sprawdzania zadań...")
 	runCheck(ctx, scr, store, notif, cfg)
+	checkDailySummary(ctx, store, notif, cfg)
 
 	if *onceFlag {
 		log.Println("🏁 Zakończono pojedyncze sprawdzenie (--once). Wyłączanie.")
@@ -58,7 +70,8 @@ func main() {
 	}
 
 	// Pętla cyklicznego monitorowania
-	log.Printf("⏰ Uruchomiono cykliczny monitoring (interwał: %v). Oczekiwanie na sygnał lub kolejny cykl...", cfg.CheckInterval)
+	log.Printf("⏰ Uruchomiono cykliczny monitoring (interwał: %v, dzienne podsumowanie: %v o %02d:00). Oczekiwanie na cykl...",
+		cfg.CheckInterval, cfg.DailySummaryEnabled, cfg.DailySummaryHour)
 	ticker := time.NewTicker(cfg.CheckInterval)
 	defer ticker.Stop()
 
@@ -70,6 +83,7 @@ func main() {
 		case <-ticker.C:
 			log.Println("🔍 [Cykl] Rozpoczynanie cyklicznego sprawdzania zadań...")
 			runCheck(ctx, scr, store, notif, cfg)
+			checkDailySummary(ctx, store, notif, cfg)
 		case sig := <-sigChan:
 			log.Printf("🛑 Odebrano sygnał %v, bezpieczne wyłączanie bota...", sig)
 			return
@@ -144,4 +158,59 @@ func runCheck(ctx context.Context, scr *scraper.Scraper, store *storage.Storage,
 			log.Printf("🚀 Pomyślnie wysłano %d powiadomień na Discord!", len(embedsToSend))
 		}
 	}
+}
+
+func checkDailySummary(ctx context.Context, store *storage.Storage, notif *notifier.DiscordNotifier, cfg *config.Config) {
+	if !cfg.DailySummaryEnabled {
+		return
+	}
+
+	now := time.Now()
+	// Jeśli godzina jest wcześniejsza niż skonfigurowana godzina podsumowania (np. 10:00), czekamy
+	if now.Hour() < cfg.DailySummaryHour {
+		return
+	}
+
+	today := now.Format("2006-01-02")
+	lastDate, err := store.GetLastDailySummaryDate()
+	if err != nil {
+		log.Printf("⚠️ Nie można odczytać daty ostatniego podsumowania dziennego: %v", err)
+		return
+	}
+
+	if lastDate == today {
+		// Dzisiejsze podsumowanie zostało już wysłane
+		return
+	}
+
+	log.Printf("📊 Przygotowywanie codziennego raportu za dzień %s...", today)
+	if err := sendDailySummary(ctx, store, notif); err != nil {
+		log.Printf("❌ Błąd podczas wysyłania dziennego podsumowania: %v", err)
+		return
+	}
+
+	if err := store.SetLastDailySummaryDate(today); err != nil {
+		log.Printf("⚠️ Błąd podczas zapisywania daty podsumowania dziennego: %v", err)
+	}
+}
+
+func sendDailySummary(ctx context.Context, store *storage.Storage, notif *notifier.DiscordNotifier) error {
+	tasks, err := store.GetAllTasks()
+	if err != nil {
+		return fmt.Errorf("błąd pobierania zadań z bazy: %w", err)
+	}
+
+	newCount, updatedCount, err := store.GetActivityLast24Hours()
+	if err != nil {
+		return fmt.Errorf("błąd pobierania aktywności z bazy: %w", err)
+	}
+
+	embed := notifier.FormatDailySummaryEmbed(tasks, newCount, updatedCount)
+	if err := notif.SendEmbeds(ctx, []notifier.Embed{embed}); err != nil {
+		return fmt.Errorf("błąd wysyłania embeda na Discord: %w", err)
+	}
+
+	log.Printf("📊 Wysłano dzienne podsumowanie na Discord (zadania: %d, aktywność 24h: nowe=%d, zaktualizowane=%d)",
+		len(tasks), newCount, updatedCount)
+	return nil
 }

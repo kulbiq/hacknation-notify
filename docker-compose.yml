@@ -9,5 +9,6 @@ services:
       - .env
     environment:
       - DB_PATH=/data/hacknation.db
+      - TZ=${TZ:-Europe/Warsaw}
     volumes:
       - ./data:/data

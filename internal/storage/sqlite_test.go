@@ -102,4 +102,32 @@ func TestStorageSync(t *testing.T) {
 	if fd.FieldName != "Pula nagród" || fd.OldValue != "Brak informacji" || fd.NewValue != "25 000 PLN" {
 		t.Errorf("unexpected field diff: %+v", fd)
 	}
+
+	// 4. Test Daily Summary metadata and tasks retrieval
+	lastDate, err := s.GetLastDailySummaryDate()
+	if err != nil || lastDate != "" {
+		t.Errorf("expected empty last summary date, got '%s', err=%v", lastDate, err)
+	}
+
+	if err := s.SetLastDailySummaryDate("2026-11-16"); err != nil {
+		t.Fatalf("failed to set daily summary date: %v", err)
+	}
+
+	lastDate, err = s.GetLastDailySummaryDate()
+	if err != nil || lastDate != "2026-11-16" {
+		t.Errorf("expected '2026-11-16', got '%s', err=%v", lastDate, err)
+	}
+
+	allTasks, err := s.GetAllTasks()
+	if err != nil || len(allTasks) != 2 {
+		t.Errorf("expected 2 tasks from GetAllTasks, got %d, err=%v", len(allTasks), err)
+	}
+
+	newCount, updatedCount, err := s.GetActivityLast24Hours()
+	if err != nil {
+		t.Fatalf("failed to get activity: %v", err)
+	}
+	if newCount != 2 || updatedCount != 1 {
+		t.Errorf("expected 2 new and 1 updated in last 24h, got new=%d, updated=%d", newCount, updatedCount)
+	}
 }

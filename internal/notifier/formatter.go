@@ -144,3 +144,74 @@ func FormatStartupEmbed(taskCount int) Embed {
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 	}
 }
+
+// FormatDailySummaryEmbed creates a daily summary embed in Polish, highlighting whether changes occurred.
+func FormatDailySummaryEmbed(tasks []scraper.Task, newCountLast24h, updatedCountLast24h int) Embed {
+	var desc string
+	hasChanges := newCountLast24h > 0 || updatedCountLast24h > 0
+
+	if !hasChanges {
+		desc = fmt.Sprintf(
+			"💤 **W ciągu ostatnich 24 godzin na [hacknation.pl/zadania](%s) nie dodano żadnych nowych zadań ani nie wprowadzono zmian.**",
+			TargetTasksURL,
+		)
+	} else {
+		desc = fmt.Sprintf(
+			"🔔 **Podsumowanie ostatnich 24 godzin na [hacknation.pl/zadania](%s):**\n• Nowe zadania: **%d**\n• Zaktualizowane zadania: **%d**",
+			TargetTasksURL,
+			newCountLast24h,
+			updatedCountLast24h,
+		)
+	}
+
+	var withPrizeCount int
+	var taskLines []string
+	for _, t := range tasks {
+		prizeText := t.Prize
+		if prizeText == "" || prizeText == "Brak informacji" {
+			prizeText = "⏳ Brak informacji"
+		} else {
+			withPrizeCount++
+			prizeText = fmt.Sprintf("💰 **%s**", prizeText)
+		}
+		taskLines = append(taskLines, fmt.Sprintf("• **%s**: %s", t.Title, prizeText))
+	}
+
+	summaryList := strings.Join(taskLines, "\n")
+	if len(summaryList) > 950 {
+		summaryList = summaryList[:947] + "..."
+	}
+
+	fields := []EmbedField{
+		{
+			Name:   "📊 Stan bazy wyzwań",
+			Value:  fmt.Sprintf("Łącznie zadań: **%d**\nZ ujawnioną nagrodą: **%d**\nOczekuje na pulę: **%d**", len(tasks), withPrizeCount, len(tasks)-withPrizeCount),
+			Inline: false,
+		},
+	}
+
+	if len(taskLines) > 0 {
+		fields = append(fields, EmbedField{
+			Name:   "📌 Przegląd zadań i puli nagród",
+			Value:  summaryList,
+			Inline: false,
+		})
+	}
+
+	color := ColorBlue
+	if hasChanges {
+		color = ColorOrange
+	}
+
+	return Embed{
+		Title:       "📊 HackNation — Dzienne podsumowanie zadań",
+		Description: desc,
+		URL:         TargetTasksURL,
+		Color:       color,
+		Fields:      fields,
+		Footer: &EmbedFooter{
+			Text: "HackNation 2026 • Codzienny raport",
+		},
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+	}
+}

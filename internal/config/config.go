@@ -16,6 +16,8 @@ type Config struct {
 	DBPath              string
 	NotifyOnInitialRun  bool
 	SendStartupMessage  bool
+	DailySummaryEnabled bool
+	DailySummaryHour    int
 }
 
 func LoadConfig() *Config {
@@ -60,12 +62,28 @@ func LoadConfig() *Config {
 		}
 	}
 
+	dailySummaryEnabled := true
+	if val := os.Getenv("DAILY_SUMMARY_ENABLED"); val != "" {
+		if b, err := strconv.ParseBool(val); err == nil {
+			dailySummaryEnabled = b
+		}
+	}
+
+	dailySummaryHour := 10 // Domyślnie 10:00
+	if val := os.Getenv("DAILY_SUMMARY_HOUR"); val != "" {
+		if h, err := strconv.Atoi(val); err == nil && h >= 0 && h <= 23 {
+			dailySummaryHour = h
+		}
+	}
+
 	return &Config{
-		DiscordWebhookURL:  webhookURL,
-		TargetURL:          targetURL,
-		CheckInterval:      interval,
-		DBPath:             dbPath,
-		NotifyOnInitialRun: notifyInitial,
-		SendStartupMessage: sendStartup,
+		DiscordWebhookURL:   webhookURL,
+		TargetURL:           targetURL,
+		CheckInterval:       interval,
+		DBPath:              dbPath,
+		NotifyOnInitialRun:  notifyInitial,
+		SendStartupMessage:  sendStartup,
+		DailySummaryEnabled: dailySummaryEnabled,
+		DailySummaryHour:    dailySummaryHour,
 	}
 }

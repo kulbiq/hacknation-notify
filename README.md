@@ -13,9 +13,10 @@ Pobiera i parsuje karty wyzwań (`<article class="hn-tterm-card ...">`), zapisuj
 - **Powiadomienia na Discord (Rich Embeds)**:
   - 🆕 **Nowe zadanie** (zielony embed z logo, inicjatorem, nagrodą i opisem).
   - ✏️ **Aktualizacja zadania** (pomarańczowy embed z wyszczególnionymi zmianami).
+  - 📊 **Codzienny raport (Daily Summary)** (raport o stałej godzinie informujący np. o braku zmian w ciągu 24h lub podsumowujący aktywność).
   - 🤖 **Status startowy** (informacja o aktywności monitoringu i liczbie załadowanych zadań).
 - **Proste wdrożenie**: Gotowy `Dockerfile` (multi-stage) i `docker-compose.yml`.
-- **Tryby działania**: Cykliczny daemon lub jednorazowe sprawdzenie (`--once`), a także tryb testowy (`--dry-run`).
+- **Tryby działania**: Cykliczny daemon lub jednorazowe sprawdzenie (`--once`), wymuszenie raportu dziennego (`--daily-summary`), a także tryb testowy (`--dry-run`).
 
 ---
 
@@ -79,6 +80,10 @@ Wymagane: Go 1.22+.
   ```bash
   go run ./cmd/bot --once
   ```
+- **Wymuszenie wysłania raportu dziennego i wyjście**:
+  ```bash
+  go run ./cmd/bot --daily-summary
+  ```
 - **Tryb testowy (DRY-RUN)** – nie wysyła zapytań do Discorda, tylko loguje treść embeda do konsoli:
   ```bash
   go run ./cmd/bot --once --dry-run
@@ -92,6 +97,9 @@ Wymagane: Go 1.22+.
 |---|---|---|
 | `DISCORD_WEBHOOK_URL` | *(brak)* | URL webhooka Discorda do wysyłania powiadomień |
 | `CHECK_INTERVAL` | `15m` | Odstęp czasu między kolejnymi sprawdzeniami (np. `5m`, `15m`, `1h`) |
+| `DAILY_SUMMARY_ENABLED` | `true` | Czy wysyłać codzienne podsumowanie stanu bazy |
+| `DAILY_SUMMARY_HOUR` | `10` | Godzina wysyłania podsumowania dziennego (0-23, np. `10` = 10:00 rano) |
+| `TZ` | `Europe/Warsaw` | Strefa czasowa dla kontenera (zalecana strefa polska) |
 | `TARGET_URL` | `https://hacknation.pl/zadania` | Adres monitorowanej strony z zadaniami |
 | `DB_PATH` | `./data/hacknation.db` | Ścieżka do pliku bazy danych SQLite |
 | `NOTIFY_ON_INITIAL_RUN` | `false` | Czy przy pierwszym uruchomieniu wysłać powiadomienia dla wszystkich istniejących zadań |

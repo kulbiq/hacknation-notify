@@ -79,3 +79,28 @@ func TestFormatUpdatedTaskEmbed(t *testing.T) {
 		t.Errorf("expected to find change diff in fields")
 	}
 }
+
+func TestFormatDailySummaryEmbed(t *testing.T) {
+	tasks := []scraper.Task{
+		{Title: "RISK MINER", Prize: "25 000 PLN"},
+		{Title: "KOMPAS KOMPETENCJI", Prize: "Brak informacji"},
+	}
+
+	// 1. Without changes in 24h
+	embedNoChanges := FormatDailySummaryEmbed(tasks, 0, 0)
+	if !strings.Contains(embedNoChanges.Description, "nie dodano żadnych nowych zadań") {
+		t.Errorf("expected embed description to mention no tasks added, got: %s", embedNoChanges.Description)
+	}
+	if embedNoChanges.Color != ColorBlue {
+		t.Errorf("expected ColorBlue, got %x", embedNoChanges.Color)
+	}
+
+	// 2. With changes in 24h
+	embedWithChanges := FormatDailySummaryEmbed(tasks, 1, 2)
+	if !strings.Contains(embedWithChanges.Description, "Nowe zadania: **1**") {
+		t.Errorf("expected embed description to mention 1 new task, got: %s", embedWithChanges.Description)
+	}
+	if embedWithChanges.Color != ColorOrange {
+		t.Errorf("expected ColorOrange, got %x", embedWithChanges.Color)
+	}
+}
